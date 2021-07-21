@@ -10,10 +10,10 @@ killport bash application allow to forcefully kill the process associate with an
 `sudo mv ./killport.sh /opt/scripts/`
 
 3. >Give executable permission
-`sudo chmod +x /opt/scripts/killport.sh
+`sudo chmod +x /opt/scripts/killport.sh`
 
 4. >Add an alias to `~/.bashrc` file
-`alias killport=/opt/scripts/killport.sh
+`alias killport=/opt/scripts/killport.sh`
 
 ## Usage
 
