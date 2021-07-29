@@ -8,7 +8,7 @@
 
 if [ $(sudo lsof -t -i:$1 | wc -l) -ge 1 ]; then
   sudo kill -9 $(sudo lsof -t -i:$1)
-  echo "Port $1 is freed up"
+  echo "Port $1 has freed up"
 else
   echo "Port $1 is already free"
 fi
