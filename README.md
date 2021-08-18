@@ -8,13 +8,17 @@ killport bash application allow to forcefully kill the process associate with an
    > `wget https://github.com/Lakmal98/killport/blob/main/killport.sh`
 
 2. > Move to a special directory
-   > `sudo mv ./killport.sh /opt/scripts/`
+   > `sudo mv ./killport.sh /usr/bin/`
 
 3. > Give executable permission
-   > `sudo chmod +x /opt/scripts/killport.sh`
+   > `sudo chmod +x /usr/bin/killport.sh`
 
 4. > Add an alias to `~/.bashrc` file
-   > `alias killport=/opt/scripts/killport.sh`
+   > `alias killport=/usr/bin/killport.sh`
+
+# or
+
+Download and the [debian installation package](https://github.com/Lakmal98/killport/releases)
 
 ## Usage
 
