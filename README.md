@@ -1,29 +1,41 @@
 # killport
 
-killport bash application allow to forcefully kill the process associate with any given port number and freed up the port
+killport bash application allows to forcefully kill the process associated with any given port numbers and free up the ports.
 
 ## Installation
 
-1. > Download the file
-   > `wget https://github.com/Lakmal98/killport/blob/main/killport.sh`
+1. > Clone the repository
+   > `git clone https://github.com/Lakmal98/killport.git`
 
-2. > Move to a special directory
-   > `sudo mv ./killport.sh /usr/bin/`
+2. > Build package using
+   > `cd killport; make install`
 
 3. > Give executable permission
    > `sudo chmod +x /usr/bin/killport.sh`
 
-4. > Add an alias to `~/.bashrc` file
-   > `alias killport=/usr/bin/killport.sh`
+4. > Install
+   > `dpkg -i killport.deb`
 
-# or
+<!-- Command	Description
+killport [PORT1] [PORT2] ... [PORTn]	kill the process associated with given ports
+killport -v	show version of the package
+killport -h	show help about the package -->
 
-Download and the [debian installation package](https://github.com/Lakmal98/killport/releases)
+<!-- make a table -->
 
 ## Usage
 
-> killport **[PORT]**
+| Command | Description |
+| ------- | ----------- |
+| killport [PORT1] [PORT2] ... [PORTn] | kill the process associated with given ports |
+| killport -v or --version | show version of the package |
+| killport -h or --help | show help about the package |
 
-###### Ex: To kill port number 3000
 
-> `killport 3000`
+> Ex: To kill port numbers 3000, 8080 and 5000
+
+> `killport 3000 8080 5000`
+
+## Uninstall
+
+> `sudo dpkg -r killport`
