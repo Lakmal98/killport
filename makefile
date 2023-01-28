@@ -7,4 +7,4 @@ install:
 	echo "Package: killport\nVersion: 0.3\nSection: base\nPriority: optional\nArchitecture: all\nDepends: bash\nMaintainer: Dimuthu Lakmal <lakmalepp@gmail.com>\nDescription: A script to kill process associated with a port" > killport/DEBIAN/control
 	echo "#!/bin/bash\nln -s /usr/local/bin/killport.sh /usr/bin/killport" > killport/DEBIAN/postinst
 	chmod +x killport/DEBIAN/postinst
-	dpkg-deb --build killport
+	dpkg-deb --build killport killport.0.3.deb
