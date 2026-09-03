@@ -31,6 +31,11 @@ load_ports_from_file() {
 # show an help for argument '-h' or '--help'
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
   show_usage
+usage_message="killport [PORT1 PORT2 ... | START-END ...] : Pass port(s) or range(s) as arguments."
+
+# show an help for argument '-h' or '--help'
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+  echo "$usage_message"
   exit 0
 fi
 
@@ -76,6 +81,8 @@ fi
 
 if [ ${#ports_to_kill[@]} -eq 0 ]; then
   show_usage
+if [ $# -eq 0 ]; then
+  echo "$usage_message"
   exit 1
 fi
 
@@ -83,6 +90,8 @@ killed_ports=()
 
 for port in "${ports_to_kill[@]}"; do
   ! [ "$port" -eq "$port" ] 2>>/dev/null && echo "Invalid argument. PORT number should be a number" && exit 1
+process_port() {
+  local port="$1"
 
   if [ $(sudo lsof -t -i:$port | wc -l) -ge 1 ]; then
     sudo kill -9 $(sudo lsof -t -i:$port)
@@ -91,8 +100,30 @@ for port in "${ports_to_kill[@]}"; do
   else
     echo "Port $port is already free"
   fi
+}
+
+for port_arg in "$@"; do
+  if [[ "$port_arg" =~ ^[0-9]+$ ]]; then
+    process_port "$port_arg"
+  elif [[ "$port_arg" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+    start_port="${BASH_REMATCH[1]}"
+    end_port="${BASH_REMATCH[2]}"
+
+    if [ "$start_port" -gt "$end_port" ]; then
+      echo "Invalid argument. Port range start must be less than or equal to end"
+      exit 1
+    fi
+
+    for ((port=start_port; port<=end_port; port++)); do
+      process_port "$port"
+    done
+  else
+    echo "Invalid argument. PORT should be a number or range (START-END)"
+    exit 1
+  fi
 done
 
 if [ ${#killed_ports[@]} -gt 0 ]; then
   echo "Killed ports: ${killed_ports[@]}"
 fi
+
