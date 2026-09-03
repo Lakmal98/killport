@@ -28,6 +28,7 @@ killport -h	show help about the package -->
 | Command | Description |
 | ------- | ----------- |
 | killport [PORT1] [PORT2] ... [PORTn] | kill the process associated with given ports |
+| killport [START-END] | kill processes associated with all ports in the given range |
 | killport -v or --version | show version of the package |
 | killport -h or --help | show help about the package |
 
@@ -35,6 +36,10 @@ killport -h	show help about the package -->
 > Ex: To kill port numbers 3000, 8080 and 5000
 
 > `killport 3000 8080 5000`
+
+> Ex: To kill all ports from 3000 to 3010
+
+> `killport 3000-3010`
 
 ## Uninstall
 
