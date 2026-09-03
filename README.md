@@ -28,6 +28,7 @@ killport -h	show help about the package -->
 | Command | Description |
 | ------- | ----------- |
 | killport [PORT1] [PORT2] ... [PORTn] | kill the process associated with given ports |
+| killport -f PORT_FILE or --file PORT_FILE | load ports from a plain text or YAML-formatted file and kill matching processes |
 | killport -v or --version | show version of the package |
 | killport -h or --help | show help about the package |
 
@@ -35,6 +36,10 @@ killport -h	show help about the package -->
 > Ex: To kill port numbers 3000, 8080 and 5000
 
 > `killport 3000 8080 5000`
+
+> Ex: To load ports from a file (plain text or YAML list)
+>
+> `killport --file ports.yaml`
 
 ## Uninstall
 
