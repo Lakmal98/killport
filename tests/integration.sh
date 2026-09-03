@@ -41,6 +41,9 @@ if [[ "$1" == -* ]]; then
   SIGNAL="${1#-}"
   shift
 fi
+if [[ "${1:-}" == "--" ]]; then
+  shift
+fi
 PID="$1"
 STATE_FILE="${KILL_STATE_FILE:?missing KILL_STATE_FILE}"
 
@@ -123,7 +126,7 @@ run_case() {
 
   local output
   set +e
-  output="$($SCRIPT "$@" 2>&1)"
+  output="$($SCRIPT "$@" </dev/null 2>&1)"
   local rc=$?
   set -e
 
@@ -136,24 +139,29 @@ setup_mocks
 output="$(run_case 65 abc)"
 assert_contains "$output" "Invalid port value 'abc'" "invalid input should be reported"
 
-output="$(run_case 0 5432)"
+output="$(run_case 0 --yes 5432)"
 assert_contains "$output" "Port 5432 is already free" "free port should be reported"
 
 printf '%s\n' 101 > "$KILL_STATE_FILE"
 export LSOF_OUTPUT="101"
-output="$(run_case 0 3000)"
+output="$(run_case 0 --yes 3000)"
 assert_contains "$output" "terminated gracefully" "TERM success should be graceful"
 
 printf '%s\n' 202 > "$KILL_STATE_FILE"
 export LSOF_OUTPUT="202"
 export STUBBORN_PIDS="202"
-output="$(run_case 0 3001)"
+output="$(run_case 0 --yes 3001)"
 assert_contains "$output" "sent SIGKILL" "stubborn process should be force killed"
 unset STUBBORN_PIDS
 
+printf '%s\n' 203 > "$KILL_STATE_FILE"
+export LSOF_OUTPUT="203"
+output="$(run_case 0 --yes --force 3001)"
+assert_contains "$output" "Sent SIGKILL (force)" "force mode should skip graceful termination"
+
 printf '%s\n%s\n' 301 302 > "$KILL_STATE_FILE"
 export LSOF_OUTPUT="301,302"
-output="$(run_case 0 3002)"
+output="$(run_case 0 --yes 3002)"
 assert_contains "$output" "Sent SIGTERM to PID 301" "first pid should be handled"
 assert_contains "$output" "Sent SIGTERM to PID 302" "second pid should be handled"
 
@@ -162,7 +170,7 @@ export LSOF_OUTPUT="999"
 export TERM_FAIL_PIDS="999"
 export KILL_FAIL_PIDS="999"
 export SUDO_FAIL="1"
-output="$(run_case 77 3003)"
+output="$(run_case 77 --yes 3003)"
 assert_contains "$output" "Try running with sudo" "permission errors should be actionable"
 unset TERM_FAIL_PIDS KILL_FAIL_PIDS SUDO_FAIL
 
@@ -170,9 +178,19 @@ output="$(run_case 64 --file /no/such/file)"
 assert_contains "$output" "Port file not found" "missing file should fail clearly"
 
 export LSOF_PERMISSION_DENIED="1"
-output="$(run_case 77 3004)"
+output="$(run_case 77 --yes 3004)"
 assert_contains "$output" "Unable to inspect port 3004 due to permissions" "lsof permission failure should be reported"
 unset LSOF_PERMISSION_DENIED
+
+printf '%s\n' 404 > "$KILL_STATE_FILE"
+export LSOF_OUTPUT="404"
+output="$(run_case 0 --dry-run 3005)"
+assert_contains "$output" "Dry run: would terminate" "dry-run should report without terminating"
+assert_contains "$output" "+------------------------------------------------------------+" "warning banner should be aligned"
+grep -qx '404' "$KILL_STATE_FILE" || fail "dry-run should not terminate processes"
+
+output="$(run_case 64 3006)"
+assert_contains "$output" "confirmation required" "non-interactive runs should require explicit approval"
 
 teardown_mocks
 

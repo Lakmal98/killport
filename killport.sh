@@ -17,13 +17,15 @@ EXIT_RUNTIME=1
 show_usage() {
   cat <<'USAGE'
 Usage:
-  killport [PORT|START-END ...] [-f|--file PORT_FILE]
+  killport [--yes|-y|--force|--dry-run] [PORT|START-END ...] [-f|--file PORT_FILE]
   killport -h|--help
   killport -v|--version
 
 Description:
   Terminates processes bound to one or more TCP/UDP ports.
   Port arguments can be single ports (3000) or ranges (3000-3010).
+  Interactive confirmation is required unless --yes is provided.
+  --force skips graceful shutdown and sends SIGKILL immediately.
 USAGE
 }
 
@@ -33,6 +35,24 @@ error() {
 
 warn() {
   echo "Warning: $*" >&2
+}
+
+show_disclaimer() {
+  local yellow=""
+  local bold=""
+  local reset=""
+  local border='+------------------------------------------------------------+'
+
+  if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+    yellow=$'\033[33m'
+    bold=$'\033[1m'
+    reset=$'\033[0m'
+  fi
+
+  printf '%s\n' "${yellow}${border}${reset}" >&2
+  printf '%s\n' "${yellow}|${reset} ${bold}WARNING:${reset} killport can terminate running processes.         ${yellow}|${reset}" >&2
+  printf '%s\n' "${yellow}|${reset} Review requested ports. Use --dry-run before termination.  ${yellow}|${reset}" >&2
+  printf '%s\n' "${yellow}${border}${reset}" >&2
 }
 
 require_command() {
@@ -46,6 +66,10 @@ require_command() {
 is_valid_port_number() {
   local value="$1"
   [[ "$value" =~ ^[0-9]+$ ]] && [ "$value" -ge 1 ] && [ "$value" -le 65535 ]
+}
+
+is_valid_pid() {
+  [[ "$1" =~ ^[1-9][0-9]*$ ]]
 }
 
 validate_port_count() {
@@ -135,7 +159,13 @@ pids_for_port() {
   fi
 
   if [ -s "$lsof_out" ]; then
-    sort -u "$lsof_out"
+    while IFS= read -r pid; do
+      if is_valid_pid "$pid"; then
+        printf '%s\n' "$pid"
+      else
+        warn "Ignoring invalid PID '$pid' reported for port $port"
+      fi
+    done < <(sort -u "$lsof_out")
   fi
 
   rm -f "$lsof_out" "$lsof_err"
@@ -144,9 +174,12 @@ pids_for_port() {
 
 process_port() {
   local port="$1"
+  local dry_run="${2:-0}"
+  local force="${3:-0}"
   local pid_list
   local pid
   local had_error=0
+  local force_attempted=0
 
   pid_list="$(pids_for_port "$port")"
   case $? in
@@ -161,23 +194,38 @@ process_port() {
     return "$EXIT_SUCCESS"
   fi
 
+  if [ "$dry_run" -eq 1 ]; then
+    echo "Dry run: would terminate process(es) on port $port: $pid_list"
+    return "$EXIT_SUCCESS"
+  fi
+
   echo "Port $port has process(es): $pid_list"
 
   while IFS= read -r pid; do
     [ -z "$pid" ] && continue
 
-    if "$KILL_CMD" -TERM "$pid" >/dev/null 2>&1; then
+    if [ "$force" -eq 1 ]; then
+      force_attempted=1
+      if "$KILL_CMD" -KILL -- "$pid" >/dev/null 2>&1; then
+        echo "Sent SIGKILL (force) to PID $pid on port $port"
+      elif command -v "$SUDO_CMD" >/dev/null 2>&1 && "$SUDO_CMD" -n "$KILL_CMD" -KILL -- "$pid" >/dev/null 2>&1; then
+        echo "Sent SIGKILL (force, sudo) to PID $pid on port $port"
+      else
+        error "Failed to force kill PID $pid on port $port. Try running with sudo."
+        had_error=1
+      fi
+    elif "$KILL_CMD" -TERM -- "$pid" >/dev/null 2>&1; then
       echo "Sent SIGTERM to PID $pid on port $port"
       sleep 0.2
-    elif command -v "$SUDO_CMD" >/dev/null 2>&1 && "$SUDO_CMD" -n "$KILL_CMD" -TERM "$pid" >/dev/null 2>&1; then
+    elif command -v "$SUDO_CMD" >/dev/null 2>&1 && "$SUDO_CMD" -n "$KILL_CMD" -TERM -- "$pid" >/dev/null 2>&1; then
       echo "Sent SIGTERM (sudo) to PID $pid on port $port"
       sleep 0.2
     fi
 
-    if "$KILL_CMD" -0 "$pid" >/dev/null 2>&1; then
-      if "$KILL_CMD" -KILL "$pid" >/dev/null 2>&1; then
+    if [ "$force_attempted" -eq 0 ] && "$KILL_CMD" -0 -- "$pid" >/dev/null 2>&1; then
+      if "$KILL_CMD" -KILL -- "$pid" >/dev/null 2>&1; then
         echo "Process $pid on port $port did not exit gracefully; sent SIGKILL"
-      elif command -v "$SUDO_CMD" >/dev/null 2>&1 && "$SUDO_CMD" -n "$KILL_CMD" -KILL "$pid" >/dev/null 2>&1; then
+      elif command -v "$SUDO_CMD" >/dev/null 2>&1 && "$SUDO_CMD" -n "$KILL_CMD" -KILL -- "$pid" >/dev/null 2>&1; then
         echo "Process $pid on port $port did not exit gracefully; sent SIGKILL with sudo"
       else
         error "Failed to terminate PID $pid on port $port. Try running with sudo."
@@ -204,9 +252,24 @@ main() {
   local token
   local port
   local final_rc="$EXIT_SUCCESS"
+  local assume_yes=0
+  local dry_run=0
+  local force=0
 
   while [ $# -gt 0 ]; do
     case "$1" in
+      -y|--yes)
+        assume_yes=1
+        shift
+        ;;
+      --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --force)
+        force=1
+        shift
+        ;;
       -h|--help)
         show_usage
         return "$EXIT_SUCCESS"
@@ -235,6 +298,8 @@ main() {
     esac
   done
 
+  show_disclaimer
+
   require_command lsof || return $?
 
   if [ -n "$ports_file" ]; then
@@ -262,8 +327,21 @@ main() {
   mapfile -t expanded_ports < <(printf '%s\n' "${expanded_ports[@]}" | sort -n -u)
   validate_port_count "${#expanded_ports[@]}" || return $?
 
+  if [ "$dry_run" -eq 0 ] && [ "$assume_yes" -eq 0 ]; then
+    if [ ! -t 0 ]; then
+      error "Interactive confirmation required. Re-run with --yes or --dry-run."
+      return "$EXIT_USAGE"
+    fi
+    printf 'Terminate processes on %s port(s)? [y/N] ' "${#expanded_ports[@]}"
+    read -r confirmation
+    if [[ ! "$confirmation" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+      echo "Aborted."
+      return "$EXIT_SUCCESS"
+    fi
+  fi
+
   for port in "${expanded_ports[@]}"; do
-    process_port "$port"
+    process_port "$port" "$dry_run" "$force"
     local rc=$?
     if [ "$rc" -eq "$EXIT_NOPERM" ]; then
       final_rc="$EXIT_NOPERM"

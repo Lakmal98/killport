@@ -9,6 +9,8 @@ It supports single ports, ranges, and file-based input with strong validation, a
 - Handles multiple processes on a single port
 - Attempts graceful shutdown (`SIGTERM`) first, then force kill (`SIGKILL`) if needed
 - Reports permission/sudo requirements with user-friendly messages
+- Requires confirmation before termination; supports `--yes` and `--dry-run`
+- Supports `--force` for immediate `SIGKILL`
 - Returns stable exit codes for automation
 
 ## Requirements
@@ -36,14 +38,26 @@ chmod +x killport.sh
 
 ## Usage examples
 
+**Warning:** `killport` can terminate processes and disrupt running services.
+Review requested ports carefully and use `--dry-run` to inspect matches first.
+
 ```bash
-killport 3000
-killport 3000 8080 5000
-killport 3000-3010
-killport --file ports.yaml
+killport --yes 3000
+killport --yes 3000 8080 5000
+killport --dry-run 3000-3010
+killport --yes --force 3000
+killport --yes --file ports.yaml
 killport -h
 killport -v
 ```
+
+Interactive runs ask for confirmation before terminating processes. Use `--yes`
+or `-y` for explicit non-interactive approval. Use `--dry-run` to inspect what
+would be terminated without sending signals. Non-interactive runs must provide
+`--yes` or `--dry-run`.
+
+Use `--force` when graceful `SIGTERM` shutdown is not working. It sends
+`SIGKILL` immediately, giving processes no opportunity to clean up.
 
 At most 1024 unique ports can be processed in one invocation. Ranges larger than
 that are rejected before expansion.

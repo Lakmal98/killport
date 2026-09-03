@@ -23,6 +23,11 @@ assert_eq "3000" "$output" "single port parsing"
 output="$(parse_port_token 3000-3002)" || fail "parse_port_token should accept valid range"
 assert_eq $'3000\n3001\n3002' "$output" "range parsing"
 
+is_valid_pid 123 || fail "positive PID should be accepted"
+if is_valid_pid 0 || is_valid_pid --1 || is_valid_pid abc; then
+  fail "invalid PID should be rejected"
+fi
+
 validate_port_count "$MAX_PORTS" || fail "maximum port count should be accepted"
 set +e
 validate_port_count $((MAX_PORTS + 1)) >/dev/null 2>/dev/null
