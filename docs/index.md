@@ -14,4 +14,4 @@ For deployment, Vercel uses:
 - `buildCommand`: `npm run docs:build`
 - `outputDirectory`: `docs/.vitepress/dist`
 
-See [Usage](./usage.md) and [Troubleshooting](./troubleshooting.md).
+See [Usage](./usage.md), [Downloads](./downloads.md), and [Troubleshooting](./troubleshooting.md).
