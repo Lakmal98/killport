@@ -45,6 +45,9 @@ killport -h
 killport -v
 ```
 
+At most 1024 unique ports can be processed in one invocation. Ranges larger than
+that are rejected before expansion.
+
 ### Example input file (`ports.yaml`)
 
 ```yaml
@@ -107,12 +110,25 @@ A VitePress docs site is scaffolded in `/docs` with SEO and GEO-aware config:
 
 - SEO: canonical URL, Open Graph/Twitter meta, robots, sitemap
 - GEO/CDN: cache-control headers configured in `vercel.json`
-- Locale setup: default and `/en/` locale routes
+- Locale setup: English root locale
 
 Deploy on Vercel using repository defaults:
 
 - Build command: `npm run docs:build`
 - Output directory: `docs/.vitepress/dist`
+
+## Contributing
+
+1. Fork the repository and create a focused branch for your change.
+2. Make the change and add or update tests when behavior changes.
+3. Run the test suite and documentation build locally:
+
+```bash
+npm test
+npm run docs:build
+```
+
+4. Open a pull request with a clear summary, test results, and any relevant documentation updates.
 
 ## Tag-based release pipeline
 

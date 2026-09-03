@@ -14,3 +14,4 @@ killport --file ./ports.yaml
 - Single port: `1..65535`
 - Port range: `START-END` with `START <= END`
 - File mode supports plain text or YAML-like content; numeric ports/ranges are extracted.
+- A maximum of 1024 unique ports can be processed per invocation. Oversized ranges are rejected before expansion.

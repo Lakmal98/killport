@@ -5,6 +5,7 @@ set -o pipefail
 VERSION="0.4"
 KILL_CMD="${KILL_CMD:-/bin/kill}"
 SUDO_CMD="${SUDO_CMD:-sudo}"
+MAX_PORTS=1024
 
 EXIT_SUCCESS=0
 EXIT_USAGE=64
@@ -47,6 +48,14 @@ is_valid_port_number() {
   [[ "$value" =~ ^[0-9]+$ ]] && [ "$value" -ge 1 ] && [ "$value" -le 65535 ]
 }
 
+validate_port_count() {
+  local port_count="$1"
+  if [ "$port_count" -gt "$MAX_PORTS" ]; then
+    error "Too many ports requested ($port_count). The maximum is $MAX_PORTS per invocation."
+    return "$EXIT_DATAERR"
+  fi
+}
+
 parse_port_token() {
   local token="$1"
 
@@ -63,6 +72,8 @@ parse_port_token() {
       error "Invalid port range '$token'. Range start must be <= end."
       return "$EXIT_DATAERR"
     fi
+
+    validate_port_count $((end_port - start_port + 1)) || return $?
 
     for ((port=start_port; port<=end_port; port++)); do
       printf '%s\n' "$port"
@@ -249,6 +260,7 @@ main() {
   fi
 
   mapfile -t expanded_ports < <(printf '%s\n' "${expanded_ports[@]}" | sort -n -u)
+  validate_port_count "${#expanded_ports[@]}" || return $?
 
   for port in "${expanded_ports[@]}"; do
     process_port "$port"
