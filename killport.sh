@@ -1,129 +1,268 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+set -o pipefail
+
+VERSION="0.4"
+KILL_CMD="${KILL_CMD:-/bin/kill}"
+SUDO_CMD="${SUDO_CMD:-sudo}"
+
+EXIT_SUCCESS=0
+EXIT_USAGE=64
+EXIT_DATAERR=65
+EXIT_UNAVAILABLE=69
+EXIT_NOPERM=77
+EXIT_RUNTIME=1
 
 show_usage() {
-  echo "killport [PORT1 PORT2 ...] [-f|--file PORT_FILE] : The PORT(s) must be given as arguments or loaded from a file."
+  cat <<'USAGE'
+Usage:
+  killport [PORT|START-END ...] [-f|--file PORT_FILE]
+  killport -h|--help
+  killport -v|--version
+
+Description:
+  Terminates processes bound to one or more TCP/UDP ports.
+  Port arguments can be single ports (3000) or ranges (3000-3010).
+USAGE
+}
+
+error() {
+  echo "Error: $*" >&2
+}
+
+warn() {
+  echo "Warning: $*" >&2
+}
+
+require_command() {
+  local cmd="$1"
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    error "Required command '$cmd' is not available in PATH."
+    return "$EXIT_UNAVAILABLE"
+  fi
+}
+
+is_valid_port_number() {
+  local value="$1"
+  [[ "$value" =~ ^[0-9]+$ ]] && [ "$value" -ge 1 ] && [ "$value" -le 65535 ]
+}
+
+parse_port_token() {
+  local token="$1"
+
+  if [[ "$token" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+    local start_port="${BASH_REMATCH[1]}"
+    local end_port="${BASH_REMATCH[2]}"
+
+    if ! is_valid_port_number "$start_port" || ! is_valid_port_number "$end_port"; then
+      error "Invalid port range '$token'. Ports must be between 1 and 65535."
+      return "$EXIT_DATAERR"
+    fi
+
+    if [ "$start_port" -gt "$end_port" ]; then
+      error "Invalid port range '$token'. Range start must be <= end."
+      return "$EXIT_DATAERR"
+    fi
+
+    for ((port=start_port; port<=end_port; port++)); do
+      printf '%s\n' "$port"
+    done
+    return "$EXIT_SUCCESS"
+  fi
+
+  if is_valid_port_number "$token"; then
+    printf '%s\n' "$token"
+    return "$EXIT_SUCCESS"
+  fi
+
+  error "Invalid port value '$token'. Use PORT or START-END with values 1..65535."
+  return "$EXIT_DATAERR"
 }
 
 load_ports_from_file() {
   local file_path="$1"
-  local ports=()
+  local line raw_token
+  local found_tokens=0
 
   if [ ! -f "$file_path" ]; then
-    echo "Port file not found: $file_path" >&2
-    return 1
+    error "Port file not found: $file_path"
+    return "$EXIT_USAGE"
   fi
 
   if [ ! -r "$file_path" ]; then
-    echo "Port file is not readable: $file_path" >&2
-    return 1
+    error "Port file is not readable: $file_path"
+    return "$EXIT_NOPERM"
   fi
 
   while IFS= read -r line || [ -n "$line" ]; do
     line="${line%%#*}"
-    for extracted_port in $(echo "$line" | grep -oE '[0-9]+'); do
-      ports+=("$extracted_port")
-    done
+    while IFS= read -r raw_token; do
+      [ -z "$raw_token" ] && continue
+      found_tokens=1
+      parse_port_token "$raw_token" || return $?
+    done < <(printf '%s\n' "$line" | grep -oE '[0-9]+(-[0-9]+)?' || true)
   done < "$file_path"
 
-  echo "${ports[@]}"
+  if [ "$found_tokens" -eq 0 ]; then
+    warn "No ports found in file: $file_path"
+  fi
 }
 
-# show an help for argument '-h' or '--help'
-if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-  show_usage
-usage_message="killport [PORT1 PORT2 ... | START-END ...] : Pass port(s) or range(s) as arguments."
+pids_for_port() {
+  local port="$1"
+  local lsof_out
+  local lsof_err
 
-# show an help for argument '-h' or '--help'
-if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-  echo "$usage_message"
-  exit 0
-fi
+  lsof_out="$(mktemp)"
+  lsof_err="$(mktemp)"
 
-# show version
-if [ "$1" = "-v" ] || [ "$1" = "--version" ]; then
-  echo "killport 0.3"
-  exit 0
-fi
-
-ports_to_kill=()
-ports_file=""
-
-while [ $# -gt 0 ]; do
-  case "$1" in
-    -f|--file)
-      if [ -z "$2" ]; then
-        echo "Missing file path for $1"
-        exit 1
-      fi
-      ports_file="$2"
-      shift 2
-      ;;
-    -*)
-      echo "Unknown option: $1"
-      show_usage
-      exit 1
-      ;;
-    *)
-      ports_to_kill+=("$1")
-      shift
-      ;;
-  esac
-done
-
-if [ -n "$ports_file" ]; then
-  loaded_ports=$(load_ports_from_file "$ports_file") || exit 1
-  if [ -n "$loaded_ports" ]; then
-    for port in $loaded_ports; do
-      ports_to_kill+=("$port")
-    done
+  if ! lsof -t -i:"$port" >"$lsof_out" 2>"$lsof_err"; then
+    if grep -qi "permission denied" "$lsof_err"; then
+      rm -f "$lsof_out" "$lsof_err"
+      return "$EXIT_NOPERM"
+    fi
   fi
-fi
 
-if [ ${#ports_to_kill[@]} -eq 0 ]; then
-  show_usage
-if [ $# -eq 0 ]; then
-  echo "$usage_message"
-  exit 1
-fi
+  if [ -s "$lsof_out" ]; then
+    sort -u "$lsof_out"
+  fi
 
-killed_ports=()
+  rm -f "$lsof_out" "$lsof_err"
+  return "$EXIT_SUCCESS"
+}
 
-for port in "${ports_to_kill[@]}"; do
-  ! [ "$port" -eq "$port" ] 2>>/dev/null && echo "Invalid argument. PORT number should be a number" && exit 1
 process_port() {
   local port="$1"
+  local pid_list
+  local pid
+  local had_error=0
 
-  if [ $(sudo lsof -t -i:$port | wc -l) -ge 1 ]; then
-    sudo kill -9 $(sudo lsof -t -i:$port)
-    echo "Port $port has freed up"
-    killed_ports+=($port)
-  else
+  pid_list="$(pids_for_port "$port")"
+  case $? in
+    "$EXIT_NOPERM")
+      error "Unable to inspect port $port due to permissions. Try running with sudo."
+      return "$EXIT_NOPERM"
+      ;;
+  esac
+
+  if [ -z "$pid_list" ]; then
     echo "Port $port is already free"
+    return "$EXIT_SUCCESS"
   fi
-}
 
-for port_arg in "$@"; do
-  if [[ "$port_arg" =~ ^[0-9]+$ ]]; then
-    process_port "$port_arg"
-  elif [[ "$port_arg" =~ ^([0-9]+)-([0-9]+)$ ]]; then
-    start_port="${BASH_REMATCH[1]}"
-    end_port="${BASH_REMATCH[2]}"
+  echo "Port $port has process(es): $pid_list"
 
-    if [ "$start_port" -gt "$end_port" ]; then
-      echo "Invalid argument. Port range start must be less than or equal to end"
-      exit 1
+  while IFS= read -r pid; do
+    [ -z "$pid" ] && continue
+
+    if "$KILL_CMD" -TERM "$pid" >/dev/null 2>&1; then
+      echo "Sent SIGTERM to PID $pid on port $port"
+      sleep 0.2
+    elif command -v "$SUDO_CMD" >/dev/null 2>&1 && "$SUDO_CMD" -n "$KILL_CMD" -TERM "$pid" >/dev/null 2>&1; then
+      echo "Sent SIGTERM (sudo) to PID $pid on port $port"
+      sleep 0.2
     fi
 
-    for ((port=start_port; port<=end_port; port++)); do
-      process_port "$port"
-    done
-  else
-    echo "Invalid argument. PORT should be a number or range (START-END)"
-    exit 1
+    if "$KILL_CMD" -0 "$pid" >/dev/null 2>&1; then
+      if "$KILL_CMD" -KILL "$pid" >/dev/null 2>&1; then
+        echo "Process $pid on port $port did not exit gracefully; sent SIGKILL"
+      elif command -v "$SUDO_CMD" >/dev/null 2>&1 && "$SUDO_CMD" -n "$KILL_CMD" -KILL "$pid" >/dev/null 2>&1; then
+        echo "Process $pid on port $port did not exit gracefully; sent SIGKILL with sudo"
+      else
+        error "Failed to terminate PID $pid on port $port. Try running with sudo."
+        had_error=1
+      fi
+    else
+      echo "Process $pid on port $port terminated gracefully"
+    fi
+  done <<< "$pid_list"
+
+  if [ "$had_error" -eq 1 ]; then
+    return "$EXIT_NOPERM"
   fi
-done
 
-if [ ${#killed_ports[@]} -gt 0 ]; then
-  echo "Killed ports: ${killed_ports[@]}"
+  echo "Port $port has been freed"
+  return "$EXIT_SUCCESS"
+}
+
+main() {
+  local ports_file=""
+  local port_tokens=()
+  local expanded_ports=()
+  local parsed_output
+  local token
+  local port
+  local final_rc="$EXIT_SUCCESS"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -h|--help)
+        show_usage
+        return "$EXIT_SUCCESS"
+        ;;
+      -v|--version)
+        echo "killport $VERSION"
+        return "$EXIT_SUCCESS"
+        ;;
+      -f|--file)
+        if [ -z "${2:-}" ] || [[ "$2" == -* ]]; then
+          error "Missing file path for $1"
+          return "$EXIT_USAGE"
+        fi
+        ports_file="$2"
+        shift 2
+        ;;
+      -* )
+        error "Unknown option: $1"
+        show_usage
+        return "$EXIT_USAGE"
+        ;;
+      *)
+        port_tokens+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  require_command lsof || return $?
+
+  if [ -n "$ports_file" ]; then
+    parsed_output="$(load_ports_from_file "$ports_file")" || return $?
+    while IFS= read -r port; do
+      [ -z "$port" ] && continue
+      expanded_ports+=("$port")
+    done <<< "$parsed_output"
+  fi
+
+  for token in "${port_tokens[@]}"; do
+    parsed_output="$(parse_port_token "$token")" || return $?
+    while IFS= read -r port; do
+      [ -z "$port" ] && continue
+      expanded_ports+=("$port")
+    done <<< "$parsed_output"
+  done
+
+  if [ "${#expanded_ports[@]}" -eq 0 ]; then
+    error "No valid ports were provided."
+    show_usage
+    return "$EXIT_USAGE"
+  fi
+
+  mapfile -t expanded_ports < <(printf '%s\n' "${expanded_ports[@]}" | sort -n -u)
+
+  for port in "${expanded_ports[@]}"; do
+    process_port "$port"
+    local rc=$?
+    if [ "$rc" -eq "$EXIT_NOPERM" ]; then
+      final_rc="$EXIT_NOPERM"
+    elif [ "$rc" -ne 0 ] && [ "$final_rc" -eq 0 ]; then
+      final_rc="$EXIT_RUNTIME"
+    fi
+  done
+
+  return "$final_rc"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
 fi
-
