@@ -1,3 +1,5 @@
 release/
 killport/*
 *.deb
+node_modules/
+docs/.vitepress/dist/

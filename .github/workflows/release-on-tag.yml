@@ -1,0 +1,43 @@
+name: Release on Tag
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  test-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run tests
+        run: bash tests/run.sh
+
+      - name: Build Debian package
+        run: make install VERSION="${GITHUB_REF_NAME#v}"
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: killport-deb
+          path: killport.*.deb
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: test-and-package
+    steps:
+      - name: Download package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: killport-deb
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: killport.*.deb
+          generate_release_notes: true
