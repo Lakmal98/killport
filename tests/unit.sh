@@ -23,6 +23,19 @@ assert_eq "3000" "$output" "single port parsing"
 output="$(parse_port_token 3000-3002)" || fail "parse_port_token should accept valid range"
 assert_eq $'3000\n3001\n3002' "$output" "range parsing"
 
+validate_port_count "$MAX_PORTS" || fail "maximum port count should be accepted"
+set +e
+validate_port_count $((MAX_PORTS + 1)) >/dev/null 2>/dev/null
+rc=$?
+set -e
+assert_eq "$EXIT_DATAERR" "$rc" "port count above maximum exit code"
+
+set +e
+parse_port_token 1-100000 >/dev/null 2>/dev/null
+rc=$?
+set -e
+assert_eq "$EXIT_DATAERR" "$rc" "oversized range exit code"
+
 set +e
 parse_port_token 0 >/dev/null 2>/dev/null
 rc=$?

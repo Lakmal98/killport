@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'killport',
   description: 'Production-ready CLI to free busy ports safely and quickly.',
-  lang: 'en-US',
+  lang: 'en',
   lastUpdated: true,
   cleanUrls: true,
   sitemap: {
@@ -25,11 +25,11 @@ export default defineConfig({
   locales: {
     root: {
       label: 'English',
-      lang: 'en-US',
       themeConfig: {
         nav: [
           { text: 'Guide', link: '/usage' },
-          { text: 'Troubleshooting', link: '/troubleshooting' }
+          { text: 'Troubleshooting', link: '/troubleshooting' },
+          { text: 'Contributing', link: '/contributing' }
         ],
         sidebar: [
           {
@@ -37,19 +37,10 @@ export default defineConfig({
             items: [
               { text: 'Overview', link: '/' },
               { text: 'Usage', link: '/usage' },
-              { text: 'Troubleshooting', link: '/troubleshooting' }
+              { text: 'Troubleshooting', link: '/troubleshooting' },
+              { text: 'Contributing', link: '/contributing' }
             ]
           }
-        ]
-      }
-    },
-    en: {
-      label: 'English (US)',
-      lang: 'en-US',
-      link: '/en/',
-      themeConfig: {
-        nav: [
-          { text: 'Guide', link: '/en/' }
         ]
       }
     }
