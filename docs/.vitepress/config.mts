@@ -7,7 +7,7 @@ export default defineConfig({
   lastUpdated: true,
   cleanUrls: true,
   sitemap: {
-    hostname: 'https://killport.vercel.app'
+    hostname: 'https://docs.killport.apps.lakmal.dev'
   },
   head: [
     ['meta', { name: 'robots', content: 'index, follow' }],
@@ -16,11 +16,11 @@ export default defineConfig({
     ['meta', { property: 'og:site_name', content: 'killport docs' }],
     ['meta', { property: 'og:title', content: 'killport documentation' }],
     ['meta', { property: 'og:description', content: 'Install, use, and troubleshoot killport in production environments.' }],
-    ['meta', { property: 'og:url', content: 'https://killport.vercel.app' }],
+    ['meta', { property: 'og:url', content: 'https://docs.killport.apps.lakmal.dev/' }],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
     ['meta', { name: 'twitter:title', content: 'killport documentation' }],
     ['meta', { name: 'twitter:description', content: 'Install, use, and troubleshoot killport in production environments.' }],
-    ['link', { rel: 'canonical', href: 'https://killport.vercel.app/' }]
+    ['link', { rel: 'canonical', href: 'https://docs.killport.apps.lakmal.dev/' }]
   ],
   locales: {
     root: {
@@ -29,6 +29,7 @@ export default defineConfig({
         nav: [
           { text: 'Guide', link: '/usage' },
           { text: 'Troubleshooting', link: '/troubleshooting' },
+          { text: 'Downloads', link: '/downloads' },
           { text: 'Contributing', link: '/contributing' }
         ],
         sidebar: [
@@ -38,6 +39,7 @@ export default defineConfig({
               { text: 'Overview', link: '/' },
               { text: 'Usage', link: '/usage' },
               { text: 'Troubleshooting', link: '/troubleshooting' },
+              { text: 'Downloads', link: '/downloads' },
               { text: 'Contributing', link: '/contributing' }
             ]
           }

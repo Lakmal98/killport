@@ -134,6 +134,8 @@ Deploy on Vercel using repository defaults:
 
 - Build command: `npm run docs:build`
 - Output directory: `docs/.vitepress/dist`
+- Documentation URL: https://docs.killport.apps.lakmal.dev/
+- Download released packages from the docs [Downloads](https://docs.killport.apps.lakmal.dev/downloads) page.
 
 ## Contributing
 
