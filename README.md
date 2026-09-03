@@ -18,6 +18,10 @@ It supports single ports, ranges, and file-based input with strong validation, a
 - Bash
 - `lsof`
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
 ## Installation
 
 ### Option 1: Build Debian package
